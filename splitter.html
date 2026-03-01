@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Splitter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #3d5a99;
+      margin-bottom: 24px;
+      letter-spacing: -0.02em;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .card h2 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #999;
+      margin-bottom: 16px;
+    }
+
+    /* ── Members ── */
+    .member-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+      min-height: 8px;
+    }
+
+    .member-tag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #eef1fb;
+      border-radius: 20px;
+      padding: 5px 10px 5px 14px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #3d5a99;
+    }
+
+    .member-tag button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #b0b8d4;
+      font-size: 0.85rem;
+      padding: 0 2px;
+      line-height: 1;
+      border-radius: 50%;
+      transition: color 0.15s;
+    }
+
+    .member-tag button:hover:not(:disabled) { color: #e53935; }
+    .member-tag button:disabled { cursor: default; opacity: 0.4; }
+
+    /* ── Inputs & selects ── */
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      border: 1.5px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 0.92rem;
+      outline: none;
+      width: 100%;
+      color: #1a1a2e;
+      background: white;
+      transition: border-color 0.15s;
+      font-family: inherit;
+    }
+
+    input:focus, select:focus { border-color: #3d5a99; }
+
+    /* ── Buttons ── */
+    button.primary {
+      background: #3d5a99;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 18px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+      font-family: inherit;
+    }
+
+    button.primary:hover { background: #2e4480; }
+
+    button.small {
+      background: #3d5a99;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+
+    button.small:hover { background: #2e4480; }
+
+    button.icon-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #ccc;
+      font-size: 0.85rem;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: color 0.15s;
+      font-family: inherit;
+      flex-shrink: 0;
+    }
+
+    button.icon-btn:hover { color: #e53935; }
+
+    button.danger {
+      background: none;
+      border: 1.5px solid #e0e0e0;
+      color: #bbb;
+      border-radius: 8px;
+      padding: 7px 18px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    button.danger:hover { border-color: #e53935; color: #e53935; }
+
+    /* ── Form layout ── */
+    .form-grid { display: grid; gap: 12px; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+    @media (max-width: 480px) {
+      .two-col, .three-col { grid-template-columns: 1fr; }
+    }
+
+    .form-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #888;
+      margin-bottom: 5px;
+      display: block;
+    }
+
+    /* ── Checkboxes ── */
+    .checkboxes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-top: 2px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.88rem;
+      cursor: pointer;
+      color: #444;
+      user-select: none;
+    }
+
+    .checkbox-label input[type="checkbox"] { cursor: pointer; width: auto; }
+
+    /* ── Expense list ── */
+    .expense-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid #f2f2f2;
+    }
+
+    .expense-item:last-child { border-bottom: none; }
+
+    .expense-meta { flex: 1; min-width: 0; }
+
+    .expense-desc {
+      font-weight: 600;
+      font-size: 0.92rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .expense-sub {
+      font-size: 0.78rem;
+      color: #aaa;
+      margin-top: 2px;
+    }
+
+    .expense-amount {
+      font-weight: 700;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      color: #1a1a2e;
+    }
+
+    /* ── Balances ── */
+    .balance-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid #f2f2f2;
+      font-size: 0.92rem;
+    }
+
+    .balance-item:last-child { border-bottom: none; }
+    .balance-name { font-weight: 500; }
+    .positive { color: #2e7d32; font-weight: 700; }
+    .negative { color: #c62828; font-weight: 700; }
+    .zero { color: #aaa; }
+
+    /* ── Suggested settlements ── */
+    .transactions {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid #f2f2f2;
+    }
+
+    .transactions h3 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #bbb;
+      margin-bottom: 12px;
+    }
+
+    .transaction-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      background: #f8f9fd;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 0.88rem;
+    }
+
+    .transaction-item:last-child { margin-bottom: 0; }
+    .transaction-text { flex: 1; }
+    .transaction-text strong { color: #3d5a99; }
+    .transaction-amount { font-weight: 700; }
+
+    /* ── Settlements list ── */
+    .settlement-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px solid #f2f2f2;
+      font-size: 0.88rem;
+    }
+
+    .settlement-item:last-child { border-bottom: none; }
+    .settlement-text { flex: 1; color: #555; }
+    .settlement-text strong { color: #1a1a2e; }
+    .settlement-amount { font-weight: 700; white-space: nowrap; }
+
+    /* ── Misc ── */
+    .empty {
+      text-align: center;
+      color: #ccc;
+      font-size: 0.88rem;
+      padding: 16px 0;
+    }
+
+    .error {
+      color: #c62828;
+      font-size: 0.8rem;
+      min-height: 18px;
+      margin-top: 6px;
+    }
+
+    .reset-row {
+      display: flex;
+      justify-content: center;
+      padding-top: 4px;
+    }
+
+    .divider {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+  <h1>Splitter</h1>
+  <div class="container">
+
+    <!-- Friends -->
+    <div class="card">
+      <h2>Friends</h2>
+      <div id="member-list" class="member-list"></div>
+      <div class="input-row">
+        <input type="text" id="member-input" placeholder="Add a name…" maxlength="40" autocomplete="off">
+        <button class="primary" id="member-add-btn">Add</button>
+      </div>
+      <div class="error" id="member-error"></div>
+    </div>
+
+    <!-- Add Expense -->
+    <div class="card">
+      <h2>Add Expense</h2>
+      <div class="form-grid">
+        <div>
+          <label class="form-label" for="exp-desc">Description</label>
+          <input type="text" id="exp-desc" placeholder="e.g. Dinner" maxlength="80" autocomplete="off">
+        </div>
+        <div class="two-col">
+          <div>
+            <label class="form-label" for="exp-amount">Amount (€)</label>
+            <input type="number" id="exp-amount" placeholder="0.00" min="0.01" step="0.01">
+          </div>
+          <div>
+            <label class="form-label" for="exp-paid-by">Paid by</label>
+            <select id="exp-paid-by"></select>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Split between</label>
+          <div class="checkboxes" id="exp-participants"></div>
+        </div>
+        <button class="primary" id="exp-add-btn">Add Expense</button>
+      </div>
+      <div class="error" id="exp-error"></div>
+    </div>
+
+    <!-- Expenses -->
+    <div class="card">
+      <h2>Expenses</h2>
+      <div id="expense-list"></div>
+    </div>
+
+    <!-- Balances -->
+    <div class="card">
+      <h2>Balances</h2>
+      <div id="balance-list"></div>
+      <div class="transactions" id="transactions-section" style="display:none">
+        <h3>Suggested settlements</h3>
+        <div id="transaction-list"></div>
+      </div>
+    </div>
+
+    <!-- Record a settlement -->
+    <div class="card">
+      <h2>Record a Settlement</h2>
+      <div class="form-grid">
+        <div class="three-col">
+          <div>
+            <label class="form-label" for="set-from">From</label>
+            <select id="set-from"></select>
+          </div>
+          <div>
+            <label class="form-label" for="set-to">To</label>
+            <select id="set-to"></select>
+          </div>
+          <div>
+            <label class="form-label" for="set-amount">Amount (€)</label>
+            <input type="number" id="set-amount" placeholder="0.00" min="0.01" step="0.01">
+          </div>
+        </div>
+        <button class="primary" id="set-add-btn">Record Settlement</button>
+      </div>
+      <div class="error" id="set-error"></div>
+      <div id="settlement-list" class="divider" style="display:none"></div>
+    </div>
+
+    <!-- Reset -->
+    <div class="reset-row">
+      <button class="danger" id="reset-btn">Reset everything</button>
+    </div>
+
+  </div>
+
+  <script>
+    const EPS = 0.005;
+
+    function round2(x) { return Math.round(x * 100) / 100; }
+
+    function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+    function computeBalances(members, expenses, settlements) {
+      const balances = {};
+      for (const m of members) balances[m] = 0;
+
+      for (const expense of expenses) {
+        const share = expense.amount / expense.participants.length;
+        balances[expense.paidBy] += expense.amount;
+        for (const p of expense.participants) balances[p] -= share;
+      }
+
+      for (const s of settlements) {
+        balances[s.from] += s.amount;
+        balances[s.to] -= s.amount;
+      }
+
+      for (const m of members) balances[m] = round2(balances[m]);
+
+      return balances;
+    }
+
+    function simplifyDebts(balances) {
+      const creditors = [];
+      const debtors = [];
+
+      for (const [name, balance] of Object.entries(balances)) {
+        if (balance > EPS)       creditors.push({ name, amount: balance });
+        else if (balance < -EPS) debtors.push({ name, amount: -balance });
+      }
+
+      creditors.sort((a, b) => b.amount - a.amount);
+      debtors.sort((a, b) => b.amount - a.amount);
+
+      const transactions = [];
+      let di = 0, ci = 0;
+
+      while (di < debtors.length && ci < creditors.length) {
+        const amount = round2(Math.min(debtors[di].amount, creditors[ci].amount));
+        transactions.push({ from: debtors[di].name, to: creditors[ci].name, amount });
+        debtors[di].amount -= amount;
+        creditors[ci].amount -= amount;
+        if (debtors[di].amount < EPS) di++;
+        if (creditors[ci].amount < EPS) ci++;
+      }
+
+      return transactions;
+    }
+  </script>
+  <script>
+
+    // ── Storage ───────────────────────────────────────────────────────────────
+
+    const STORAGE_KEY = 'splitter';
+
+    function load() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? defaultState(); }
+      catch { return defaultState(); }
+    }
+
+    function save(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+
+    function defaultState() { return { members: [], expenses: [], settlements: [] }; }
+
+    // ── State ─────────────────────────────────────────────────────────────────
+
+    let state = load();
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function fmt(n) { return '€\u202f' + n.toFixed(2); }
+
+    function fmtDate(iso) {
+      return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function memberOptions() {
+      if (state.members.length === 0)
+        return '<option value="">— add friends first —</option>';
+      return state.members.map(m => `<option value="${escHtml(m)}">${escHtml(m)}</option>`).join('');
+    }
+
+    function setError(id, msg) { document.getElementById(id).textContent = msg; }
+    function clearError(id)    { document.getElementById(id).textContent = ''; }
+
+    // ── Render groups ─────────────────────────────────────────────────────────
+
+    // Called when members change (add/remove)
+    function onMembersChanged() {
+      renderMembers();
+      renderExpenseForm();
+      renderSettleForm();
+      renderBalances();
+    }
+
+    // Called when expenses or settlements change
+    function onLedgerChanged() {
+      renderMembers(); // re-evaluate which remove buttons are disabled
+      renderExpenses();
+      renderSettlements();
+      renderBalances();
+    }
+
+    function renderAll() {
+      renderMembers();
+      renderExpenseForm();
+      renderExpenses();
+      renderBalances();
+      renderSettleForm();
+      renderSettlements();
+    }
+
+    // ── Render: Members ───────────────────────────────────────────────────────
+
+    function renderMembers() {
+      const list = document.getElementById('member-list');
+      list.innerHTML = '';
+
+      if (state.members.length === 0) {
+        list.innerHTML = '<span style="font-size:0.85rem;color:#ccc">No friends yet.</span>';
+        return;
+      }
+
+      // Precompute which members are referenced, to avoid scanning per-member
+      const used = new Set();
+      for (const e of state.expenses) {
+        used.add(e.paidBy);
+        for (const p of e.participants) used.add(p);
+      }
+      for (const s of state.settlements) { used.add(s.from); used.add(s.to); }
+
+      for (const name of state.members) {
+        const tag = document.createElement('div');
+        tag.className = 'member-tag';
+        const isUsed = used.has(name);
+        tag.innerHTML = `${escHtml(name)} <button title="${isUsed ? 'In use' : 'Remove'}" ${isUsed ? 'disabled' : ''}>✕</button>`;
+        tag.querySelector('button').addEventListener('click', () => removeMember(name));
+        list.appendChild(tag);
+      }
+    }
+
+    // ── Render: Expense form ──────────────────────────────────────────────────
+
+    function renderExpenseForm() {
+      const paidBySel = document.getElementById('exp-paid-by');
+      const participantsEl = document.getElementById('exp-participants');
+      const prevPaidBy = paidBySel.value;
+
+      paidBySel.innerHTML = memberOptions();
+
+      if (state.members.length === 0) {
+        participantsEl.innerHTML = '<span style="font-size:0.85rem;color:#ccc">No friends yet.</span>';
+        return;
+      }
+
+      if (state.members.includes(prevPaidBy)) paidBySel.value = prevPaidBy;
+
+      // Members not in prevUnchecked are checked by default (covers newly added members)
+      const prevUnchecked = new Set(
+        [...participantsEl.querySelectorAll('input:not(:checked)')].map(i => i.value)
+      );
+
+      participantsEl.innerHTML = '';
+      for (const m of state.members) {
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        const checked = !prevUnchecked.has(m);
+        label.innerHTML = `<input type="checkbox" value="${escHtml(m)}" ${checked ? 'checked' : ''}> ${escHtml(m)}`;
+        participantsEl.appendChild(label);
+      }
+    }
+
+    // ── Render: Expenses list ─────────────────────────────────────────────────
+
+    function renderExpenses() {
+      const list = document.getElementById('expense-list');
+      list.innerHTML = '';
+
+      if (state.expenses.length === 0) {
+        list.innerHTML = '<div class="empty">No expenses yet.</div>';
+        return;
+      }
+
+      for (let i = state.expenses.length - 1; i >= 0; i--) {
+        const exp = state.expenses[i];
+        const div = document.createElement('div');
+        div.className = 'expense-item';
+        div.innerHTML = `
+          <div class="expense-meta">
+            <div class="expense-desc">${escHtml(exp.description)}</div>
+            <div class="expense-sub">
+              ${fmtDate(exp.date)} &middot; paid by ${escHtml(exp.paidBy)}
+              &middot; ${exp.participants.length} ${exp.participants.length === 1 ? 'person' : 'people'}
+            </div>
+          </div>
+          <div class="expense-amount">${fmt(exp.amount)}</div>
+          <button class="icon-btn" title="Delete expense">✕</button>
+        `;
+        div.querySelector('button').addEventListener('click', () => deleteEntry('expenses', exp.id));
+        list.appendChild(div);
+      }
+    }
+
+    // ── Render: Balances ──────────────────────────────────────────────────────
+
+    function renderBalances() {
+      const balList = document.getElementById('balance-list');
+      const txSection = document.getElementById('transactions-section');
+      const txList = document.getElementById('transaction-list');
+
+      if (state.members.length === 0) {
+        balList.innerHTML = '<div class="empty">Add friends to see balances.</div>';
+        txSection.style.display = 'none';
+        return;
+      }
+
+      const balances = computeBalances(state.members, state.expenses, state.settlements);
+      balList.innerHTML = '';
+
+      for (const [name, bal] of Object.entries(balances)) {
+        const div = document.createElement('div');
+        div.className = 'balance-item';
+        let amountHtml;
+        if (bal > 0)      amountHtml = `<span class="positive">gets back ${fmt(bal)}</span>`;
+        else if (bal < 0) amountHtml = `<span class="negative">owes ${fmt(-bal)}</span>`;
+        else              amountHtml = `<span class="zero">settled up</span>`;
+        div.innerHTML = `<span class="balance-name">${escHtml(name)}</span>${amountHtml}`;
+        balList.appendChild(div);
+      }
+
+      const transactions = simplifyDebts(balances);
+      if (transactions.length === 0) {
+        txSection.style.display = 'none';
+        return;
+      }
+
+      txSection.style.display = 'block';
+      txList.innerHTML = '';
+      for (const tx of transactions) {
+        const div = document.createElement('div');
+        div.className = 'transaction-item';
+        div.innerHTML = `
+          <span class="transaction-text">
+            <strong>${escHtml(tx.from)}</strong> &rarr; <strong>${escHtml(tx.to)}</strong>
+          </span>
+          <span class="transaction-amount">${fmt(tx.amount)}</span>
+          <button class="small">Record</button>
+        `;
+        div.querySelector('button').addEventListener('click', () => prefillSettlement(tx));
+        txList.appendChild(div);
+      }
+    }
+
+    // ── Render: Settle form & list ────────────────────────────────────────────
+
+    function renderSettleForm() {
+      const fromSel = document.getElementById('set-from');
+      const toSel = document.getElementById('set-to');
+      const prevFrom = fromSel.value;
+      const prevTo = toSel.value;
+      const opts = memberOptions();
+
+      fromSel.innerHTML = opts;
+      toSel.innerHTML = opts;
+
+      if (state.members.includes(prevFrom)) fromSel.value = prevFrom;
+      if (state.members.includes(prevTo) && prevTo !== fromSel.value) toSel.value = prevTo;
+      else if (state.members.length > 1) toSel.value = state.members[1];
+    }
+
+    function renderSettlements() {
+      const container = document.getElementById('settlement-list');
+
+      if (state.settlements.length === 0) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+      }
+
+      container.style.display = 'block';
+      container.innerHTML = '';
+
+      for (let i = state.settlements.length - 1; i >= 0; i--) {
+        const s = state.settlements[i];
+        const div = document.createElement('div');
+        div.className = 'settlement-item';
+        div.innerHTML = `
+          <span class="settlement-text">
+            ${fmtDate(s.date)} &middot;
+            <strong>${escHtml(s.from)}</strong> paid <strong>${escHtml(s.to)}</strong>
+          </span>
+          <span class="settlement-amount">${fmt(s.amount)}</span>
+          <button class="icon-btn" title="Delete settlement">✕</button>
+        `;
+        div.querySelector('button').addEventListener('click', () => deleteEntry('settlements', s.id));
+        container.appendChild(div);
+      }
+    }
+
+    function prefillSettlement(tx) {
+      document.getElementById('set-from').value = tx.from;
+      document.getElementById('set-to').value = tx.to;
+      document.getElementById('set-amount').value = tx.amount.toFixed(2);
+      document.getElementById('set-from').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // ── Actions: Members ──────────────────────────────────────────────────────
+
+    function addMember() {
+      clearError('member-error');
+      const input = document.getElementById('member-input');
+      const name = input.value.trim();
+      if (!name) return;
+      if (state.members.includes(name)) {
+        setError('member-error', `"${name}" is already in the group.`);
+        return;
+      }
+      state.members.push(name);
+      save(state);
+      input.value = '';
+      onMembersChanged();
+    }
+
+    function removeMember(name) {
+      state.members = state.members.filter(m => m !== name);
+      save(state);
+      onMembersChanged();
+    }
+
+    // ── Actions: Expenses & Settlements ──────────────────────────────────────
+
+    function deleteEntry(key, id) {
+      state[key] = state[key].filter(e => e.id !== id);
+      save(state);
+      onLedgerChanged();
+    }
+
+    function addExpense() {
+      clearError('exp-error');
+      const desc = document.getElementById('exp-desc').value.trim();
+      const amount = parseFloat(document.getElementById('exp-amount').value);
+      const paidBy = document.getElementById('exp-paid-by').value;
+      const participants = [...document.querySelectorAll('#exp-participants input:checked')].map(c => c.value);
+
+      if (!desc)                     { setError('exp-error', 'Please enter a description.'); return; }
+      if (!amount || amount <= 0)    { setError('exp-error', 'Please enter a valid amount.'); return; }
+      if (!paidBy)                   { setError('exp-error', 'Please select who paid.'); return; }
+      if (participants.length === 0) { setError('exp-error', 'Select at least one participant.'); return; }
+
+      state.expenses.push({
+        id: uid(),
+        description: desc,
+        amount,
+        paidBy,
+        participants,
+        date: new Date().toISOString().slice(0, 10),
+      });
+      save(state);
+      document.getElementById('exp-desc').value = '';
+      document.getElementById('exp-amount').value = '';
+      onLedgerChanged();
+    }
+
+    function addSettlement() {
+      clearError('set-error');
+      const from = document.getElementById('set-from').value;
+      const to = document.getElementById('set-to').value;
+      const amount = parseFloat(document.getElementById('set-amount').value);
+
+      if (!from || !to)           { setError('set-error', 'Select both people.'); return; }
+      if (from === to)            { setError('set-error', 'A person cannot pay themselves.'); return; }
+      if (!amount || amount <= 0) { setError('set-error', 'Please enter a valid amount.'); return; }
+
+      state.settlements.push({
+        id: uid(),
+        from,
+        to,
+        amount,
+        date: new Date().toISOString().slice(0, 10),
+      });
+      save(state);
+      document.getElementById('set-amount').value = '';
+      onLedgerChanged();
+    }
+
+    // ── Event listeners ───────────────────────────────────────────────────────
+
+    document.getElementById('member-add-btn').addEventListener('click', addMember);
+    document.getElementById('member-input').addEventListener('keydown', e => { if (e.key === 'Enter') addMember(); });
+    document.getElementById('exp-add-btn').addEventListener('click', addExpense);
+    document.getElementById('exp-desc').addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
+    document.getElementById('set-add-btn').addEventListener('click', addSettlement);
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      if (confirm('Reset everything? All data will be lost.')) {
+        state = defaultState();
+        save(state);
+        renderAll();
+      }
+    });
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+
+    renderAll();
+  </script>
+</body>
+</html>

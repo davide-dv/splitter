@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Splitter — Tests</title>
+  <style>
+    body { font-family: monospace; max-width: 720px; margin: 40px auto; padding: 0 20px; background: #111; color: #eee; }
+    h1 { font-size: 1.2rem; margin-bottom: 4px; }
+    h2 { font-size: 0.95rem; color: #aaa; margin: 28px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+    .result { padding: 4px 0; font-size: 0.88rem; }
+    .pass { color: #4caf50; }
+    .fail { color: #f44336; }
+    #summary { margin-top: 24px; font-size: 1rem; font-weight: bold; padding: 10px; border-radius: 4px; }
+    .all-pass { background: #1b3a1f; color: #4caf50; }
+    .has-fail { background: #3a1b1b; color: #f44336; }
+  </style>
+</head>
+<body>
+  <h1>Splitter — Test Suite</h1>
+  <div id="output"></div>
+  <div id="summary"></div>
+
+  <script src="logic.js"></script>
+  <script>
+
+    // ── Runner ────────────────────────────────────────────────────────────────
+
+    const results = [];
+
+    function assert(label, actual, expected) {
+      const pass = JSON.stringify(actual) === JSON.stringify(expected);
+      results.push({ label, pass, actual, expected });
+    }
+
+    function assertDeepUnordered(label, actual, expected) {
+      const norm = arr => [...arr].sort((a, b) =>
+        (a.from + a.to + a.amount) < (b.from + b.to + b.amount) ? -1 : 1
+      );
+      assert(label, norm(actual), norm(expected));
+    }
+
+    // ── computeBalances ───────────────────────────────────────────────────────
+
+    const members = ['Alice', 'Bob', 'Davide'];
+
+    // 1
+    assert(
+      'No expenses → all balances are 0',
+      computeBalances(members, [], []),
+      { Alice: 0, Bob: 0, Davide: 0 }
+    );
+
+    // 2
+    assert(
+      'One expense, Alice pays 90, all 3 participate equally',
+      computeBalances(members, [
+        { paidBy: 'Alice', amount: 90, participants: ['Alice', 'Bob', 'Davide'] }
+      ], []),
+      { Alice: 60, Bob: -30, Davide: -30 }
+    );
+
+    // 3
+    assert(
+      'Payer is NOT a participant (Alice pays 90, only Bob and Davide split)',
+      computeBalances(members, [
+        { paidBy: 'Alice', amount: 90, participants: ['Bob', 'Davide'] }
+      ], []),
+      { Alice: 90, Bob: -45, Davide: -45 }
+    );
+
+    // 4
+    assert(
+      'Payer is participant: Alice pays 60, Alice and Bob split',
+      computeBalances(members, [
+        { paidBy: 'Alice', amount: 60, participants: ['Alice', 'Bob'] }
+      ], []),
+      { Alice: 30, Bob: -30, Davide: 0 }
+    );
+
+    // 5
+    assert(
+      'Multiple expenses accumulate correctly',
+      computeBalances(members, [
+        { paidBy: 'Alice', amount: 90, participants: ['Alice', 'Bob', 'Davide'] },
+        { paidBy: 'Bob',   amount: 60, participants: ['Alice', 'Bob'] }
+      ], []),
+      { Alice: 30, Bob: 0, Davide: -30 }
+    );
+
+    // 6
+    assert(
+      'Settlement clears debt between two people',
+      computeBalances(members, [
+        { paidBy: 'Alice', amount: 90, participants: ['Alice', 'Bob', 'Davide'] }
+      ], [
+        { from: 'Bob',    to: 'Alice', amount: 30 },
+        { from: 'Davide', to: 'Alice', amount: 30 }
+      ]),
+      { Alice: 0, Bob: 0, Davide: 0 }
+    );
+
+    // 7
+    assert(
+      'Partial settlement reduces but does not clear debt',
+      computeBalances(members, [
+        { paidBy: 'Alice', amount: 90, participants: ['Alice', 'Bob', 'Davide'] }
+      ], [
+        { from: 'Bob', to: 'Alice', amount: 10 }
+      ]),
+      { Alice: 50, Bob: -20, Davide: -30 }
+    );
+
+    // 8 — floating point: 100 / 3
+    assert(
+      'Floating point: 100 split 3 ways rounds to 2 decimal places',
+      computeBalances(members, [
+        { paidBy: 'Alice', amount: 100, participants: ['Alice', 'Bob', 'Davide'] }
+      ], []),
+      { Alice: 66.67, Bob: -33.33, Davide: -33.33 }
+    );
+
+    // ── simplifyDebts ─────────────────────────────────────────────────────────
+
+    // 9
+    assert(
+      'All zero balances → no transactions',
+      simplifyDebts({ Alice: 0, Bob: 0, Davide: 0 }),
+      []
+    );
+
+    // 10
+    assert(
+      'One creditor, one debtor, exact amounts → one transaction',
+      simplifyDebts({ Alice: 30, Bob: -30 }),
+      [{ from: 'Bob', to: 'Alice', amount: 30 }]
+    );
+
+    // 11
+    assertDeepUnordered(
+      'One creditor, two debtors → two transactions',
+      simplifyDebts({ Alice: 60, Bob: -30, Davide: -30 }),
+      [
+        { from: 'Bob',    to: 'Alice', amount: 30 },
+        { from: 'Davide', to: 'Alice', amount: 30 }
+      ]
+    );
+
+    // 12
+    assertDeepUnordered(
+      'Two creditors, one debtor → two transactions',
+      simplifyDebts({ Alice: 30, Bob: 20, Davide: -50 }),
+      [
+        { from: 'Davide', to: 'Alice', amount: 30 },
+        { from: 'Davide', to: 'Bob',   amount: 20 }
+      ]
+    );
+
+    // 13
+    assertDeepUnordered(
+      'Complex case: two debtors, two creditors',
+      simplifyDebts({ Alice: 40, Bob: 20, Davide: -10, Eve: -50 }),
+      [
+        { from: 'Eve',    to: 'Alice', amount: 40 },
+        { from: 'Eve',    to: 'Bob',   amount: 10 },
+        { from: 'Davide', to: 'Bob',   amount: 10 }
+      ]
+    );
+
+    // 14
+    assert(
+      'Already settled group → empty result',
+      simplifyDebts({ Alice: 0, Bob: 0, Davide: 0 }),
+      []
+    );
+
+    // ── Render ────────────────────────────────────────────────────────────────
+
+    const output = document.getElementById('output');
+    const summary = document.getElementById('summary');
+
+    const groups = { computeBalances: [], simplifyDebts: [] };
+    results.forEach((r, i) => {
+      groups[i < 8 ? 'computeBalances' : 'simplifyDebts'].push(r);
+    });
+
+    for (const [fn, tests] of Object.entries(groups)) {
+      const h2 = document.createElement('h2');
+      h2.textContent = fn + '()';
+      output.appendChild(h2);
+
+      for (const { label, pass, actual, expected } of tests) {
+        const div = document.createElement('div');
+        div.className = 'result ' + (pass ? 'pass' : 'fail');
+        div.textContent = (pass ? '✓' : '✗') + '  ' + label;
+        if (!pass) {
+          div.textContent += `\n    expected: ${JSON.stringify(expected)}\n    actual:   ${JSON.stringify(actual)}`;
+          div.style.whiteSpace = 'pre';
+        }
+        output.appendChild(div);
+      }
+    }
+
+    const total = results.length;
+    const passed = results.filter(r => r.pass).length;
+    summary.textContent = `${passed} / ${total} tests passed`;
+    summary.className = passed === total ? 'all-pass' : 'has-fail';
+  </script>
+</body>
+</html>
