@@ -1,7 +1,8 @@
-const EPS = 0.005;
 const MAX_AMOUNT = 1e9;
 
 function round2(x) { return Math.round(x * 100) / 100; }
+
+function toCents(x) { return Math.round(x * 100); }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
@@ -12,28 +13,42 @@ function validAmount(x) { return typeof x === 'number' && Number.isFinite(x) && 
  * Positive = is owed money. Negative = owes money.
  * Entries that cannot be applied (invalid amount, no participants, people who
  * are not members) are ignored instead of corrupting the balances.
+ *
+ * Works in whole cents so the balances always add up to exactly zero.
+ * When an expense does not divide evenly, the leftover cents go one each to
+ * the participants, starting from the payer (if they take part).
  */
 function computeBalances(members, expenses, settlements) {
-  const balances = Object.create(null);
-  for (const m of members) balances[m] = 0;
-  const known = name => Object.prototype.hasOwnProperty.call(balances, name);
+  const cents = Object.create(null);
+  for (const m of members) cents[m] = 0;
+  const known = name => Object.prototype.hasOwnProperty.call(cents, name);
 
   for (const expense of expenses) {
     const { amount, paidBy, participants } = expense;
     if (!validAmount(amount) || !Array.isArray(participants) || participants.length === 0) continue;
     if (!known(paidBy) || !participants.every(known)) continue;
-    const share = amount / participants.length;
-    balances[paidBy] += amount;
-    for (const p of participants) balances[p] -= share;
+
+    const total = toCents(amount);
+    const order = participants.slice();
+    const payerAt = order.indexOf(paidBy);
+    if (payerAt > 0) order.unshift(order.splice(payerAt, 1)[0]);
+
+    const base = Math.floor(total / order.length);
+    const extra = total - base * order.length;
+
+    cents[paidBy] += total;
+    order.forEach((p, i) => { cents[p] -= base + (i < extra ? 1 : 0); });
   }
 
   for (const s of settlements) {
     if (!validAmount(s.amount) || !known(s.from) || !known(s.to)) continue;
-    balances[s.from] += s.amount;
-    balances[s.to] -= s.amount;
+    const c = toCents(s.amount);
+    cents[s.from] += c;
+    cents[s.to] -= c;
   }
 
-  for (const m of members) balances[m] = round2(balances[m]);
+  const balances = Object.create(null);
+  for (const m of members) balances[m] = cents[m] / 100;
 
   return balances;
 }
@@ -48,8 +63,9 @@ function simplifyDebts(balances) {
 
   for (const [name, balance] of Object.entries(balances)) {
     if (!Number.isFinite(balance)) continue;
-    if (balance > EPS)   creditors.push({ name, amount: balance });
-    else if (balance < -EPS) debtors.push({ name, amount: -balance });
+    const c = toCents(balance);
+    if (c > 0)      creditors.push({ name, amount: c });
+    else if (c < 0) debtors.push({ name, amount: -c });
   }
 
   creditors.sort((a, b) => b.amount - a.amount);
@@ -59,13 +75,13 @@ function simplifyDebts(balances) {
   let di = 0, ci = 0;
 
   while (di < debtors.length && ci < creditors.length) {
-    const amount = round2(Math.min(debtors[di].amount, creditors[ci].amount));
+    const amount = Math.min(debtors[di].amount, creditors[ci].amount);
     if (!(amount > 0)) break;
-    transactions.push({ from: debtors[di].name, to: creditors[ci].name, amount });
+    transactions.push({ from: debtors[di].name, to: creditors[ci].name, amount: amount / 100 });
     debtors[di].amount -= amount;
     creditors[ci].amount -= amount;
-    if (debtors[di].amount < EPS) di++;
-    if (creditors[ci].amount < EPS) ci++;
+    if (debtors[di].amount === 0) di++;
+    if (creditors[ci].amount === 0) ci++;
   }
 
   return transactions;
