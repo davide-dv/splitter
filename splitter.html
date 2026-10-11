@@ -516,6 +516,13 @@
         .replace(/"/g, '&quot;');
     }
 
+    // Today's date in the user's local time zone, as YYYY-MM-DD
+    function today() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+
     function memberOptions() {
       if (state.members.length === 0)
         return '<option value="">— add friends first —</option>';
@@ -703,11 +710,17 @@
       const opts = memberOptions();
 
       fromSel.innerHTML = opts;
-      toSel.innerHTML = opts;
-
       if (state.members.includes(prevFrom)) fromSel.value = prevFrom;
+
+      // With a single friend there is nobody to pay: leave "To" empty instead of repeating the same name
+      if (state.members.length === 1) {
+        toSel.innerHTML = '<option value="">— add another friend —</option>';
+        return;
+      }
+
+      toSel.innerHTML = opts;
       if (state.members.includes(prevTo) && prevTo !== fromSel.value) toSel.value = prevTo;
-      else if (state.members.length > 1) toSel.value = state.members[1];
+      else toSel.value = state.members.find(m => m !== fromSel.value) ?? '';
     }
 
     function renderSettlements() {
@@ -751,7 +764,7 @@
     function addMember() {
       clearError('member-error');
       const input = document.getElementById('member-input');
-      const name = input.value.trim();
+      const name = input.value.trim().replace(/\s+/g, ' ');
       if (!name) return;
       if (state.members.includes(name)) {
         setError('member-error', `"${name}" is already in the group.`);
@@ -795,11 +808,13 @@
         amount,
         paidBy,
         participants,
-        date: new Date().toISOString().slice(0, 10),
+        date: today(),
       });
       save(state);
       document.getElementById('exp-desc').value = '';
       document.getElementById('exp-amount').value = '';
+      // every expense starts with everyone selected again
+      document.querySelectorAll('#exp-participants input').forEach(c => { c.checked = true; });
       onLedgerChanged();
     }
 
@@ -818,7 +833,7 @@
         from,
         to,
         amount,
-        date: new Date().toISOString().slice(0, 10),
+        date: today(),
       });
       save(state);
       document.getElementById('set-amount').value = '';
@@ -831,7 +846,9 @@
     document.getElementById('member-input').addEventListener('keydown', e => { if (e.key === 'Enter') addMember(); });
     document.getElementById('exp-add-btn').addEventListener('click', addExpense);
     document.getElementById('exp-desc').addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
+    document.getElementById('exp-amount').addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
     document.getElementById('set-add-btn').addEventListener('click', addSettlement);
+    document.getElementById('set-amount').addEventListener('keydown', e => { if (e.key === 'Enter') addSettlement(); });
     document.getElementById('reset-btn').addEventListener('click', () => {
       if (confirm('Reset everything? All data will be lost.')) {
         state = defaultState();
