@@ -27,9 +27,9 @@
 
     const results = [];
 
-    function assert(label, actual, expected) {
+    function assert(label, actual, expected, group) {
       const pass = JSON.stringify(actual) === JSON.stringify(expected);
-      results.push({ label, pass, actual, expected });
+      results.push({ label, pass, actual, expected, group });
     }
 
     function assertDeepUnordered(label, actual, expected) {
@@ -173,6 +173,77 @@
       []
     );
 
+    // ── Robustness: invalid data must not corrupt balances or hang ───────────
+
+    const R = 'robustness';
+    const ex = (paidBy, amount, participants) => ({ paidBy, amount, participants });
+
+    assert('Expense with no participants is ignored',
+      computeBalances(members, [ex('Alice', 10, [])], []),
+      { Alice: 0, Bob: 0, Davide: 0 }, R);
+
+    assert('Expense paid by a non-member is ignored (no NaN)',
+      computeBalances(members, [ex('Zed', 10, ['Alice'])], []),
+      { Alice: 0, Bob: 0, Davide: 0 }, R);
+
+    assert('Expense with a non-member participant is ignored (no NaN)',
+      computeBalances(members, [ex('Alice', 10, ['Alice', 'Zed'])], []),
+      { Alice: 0, Bob: 0, Davide: 0 }, R);
+
+    assert('Non-finite, negative, zero and huge amounts are ignored',
+      computeBalances(members, [
+        ex('Alice', Infinity, ['Bob']), ex('Alice', NaN, ['Bob']), ex('Alice', -5, ['Bob']),
+        ex('Alice', 0, ['Bob']), ex('Alice', 1e308, ['Bob']), ex('Alice', '10', ['Bob'])
+      ], []),
+      { Alice: 0, Bob: 0, Davide: 0 }, R);
+
+    assert('Settlement with an unknown person is ignored',
+      computeBalances(members, [], [{ from: 'Zed', to: 'Alice', amount: 5 }]),
+      { Alice: 0, Bob: 0, Davide: 0 }, R);
+
+    assert('Member named "__proto__" is handled like any other',
+      computeBalances(['__proto__', 'Bob'], [ex('Bob', 10, ['__proto__', 'Bob'])], []),
+      JSON.parse('{"__proto__": -5, "Bob": 5}'), R);
+
+    assert('Members whose names look like numbers keep their balance',
+      computeBalances(['1', 'Bob'], [ex('Bob', 10, ['1', 'Bob'])], []),
+      { '1': -5, Bob: 5 }, R);
+
+    assert('simplifyDebts ends (empty) on Infinity/NaN balances',
+      simplifyDebts({ A: Infinity, B: -Infinity, C: NaN }),
+      [], R);
+
+    assert('simplifyDebts ignores a non-finite entry but still settles the rest',
+      simplifyDebts({ A: 10, B: -10, C: NaN }),
+      [{ from: 'B', to: 'A', amount: 10 }], R);
+
+    const empty = { members: [], expenses: [], settlements: [] };
+    assert('sanitizeState(null) → empty state', sanitizeState(null), empty, R);
+    assert('sanitizeState([]) → empty state', sanitizeState([]), empty, R);
+    assert('sanitizeState with only members keeps them',
+      sanitizeState({ members: ['A'] }), { members: ['A'], expenses: [], settlements: [] }, R);
+    assert('sanitizeState drops duplicate/non-string members',
+      sanitizeState({ members: ['A', 'A', 3, '', null, 'B'] }).members, ['A', 'B'], R);
+
+    const good = { id: 'x1', description: 'Pizza', amount: 12.5, paidBy: 'A', participants: ['A', 'B'], date: '2026-03-01' };
+    const goodS = { id: 's1', from: 'B', to: 'A', amount: 3, date: '2026-03-02' };
+    assert('sanitizeState keeps valid data unchanged (same stored format)',
+      sanitizeState({ members: ['A', 'B'], expenses: [good], settlements: [goodS] }),
+      { members: ['A', 'B'], expenses: [good], settlements: [goodS] }, R);
+
+    assert('sanitizeState drops broken expenses and settlements',
+      sanitizeState({
+        members: ['A', 'B'],
+        expenses: [good, null, 5, { ...good, amount: 1e308 }, { ...good, participants: [] },
+                   { ...good, paidBy: 'Z' }, { ...good, participants: ['A', 'Z'] }, { ...good, amount: '3' }],
+        settlements: [goodS, { ...goodS, from: 'Z' }, { ...goodS, amount: -1 }, 'x']
+      }),
+      { members: ['A', 'B'], expenses: [good], settlements: [goodS] }, R);
+
+    assert('sanitizeState: expenses that is not an array does not throw',
+      sanitizeState({ members: ['A'], expenses: 'oops', settlements: {} }),
+      { members: ['A'], expenses: [], settlements: [] }, R);
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     const output = document.getElementById('output');
@@ -180,7 +251,8 @@
 
     const groups = { computeBalances: [], simplifyDebts: [] };
     results.forEach((r, i) => {
-      groups[i < 8 ? 'computeBalances' : 'simplifyDebts'].push(r);
+      const g = r.group || (i < 8 ? 'computeBalances' : 'simplifyDebts');
+      (groups[g] = groups[g] || []).push(r);
     });
 
     for (const [fn, tests] of Object.entries(groups)) {

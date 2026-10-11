@@ -336,6 +336,7 @@
 <body>
   <h1>Splitter</h1>
   <div class="container">
+    <div class="error" id="storage-error" role="alert"></div>
 
     <!-- Friends -->
     <div class="card">
@@ -424,22 +425,36 @@
 
   <script>
     const EPS = 0.005;
+    const MAX_AMOUNT = 1e9;
 
     function round2(x) { return Math.round(x * 100) / 100; }
 
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
+    function validAmount(x) { return typeof x === 'number' && Number.isFinite(x) && x > 0 && x <= MAX_AMOUNT; }
+
+    /**
+     * Compute the net balance for each member.
+     * Positive = is owed money. Negative = owes money.
+     * Entries that cannot be applied (invalid amount, no participants, people who
+     * are not members) are ignored instead of corrupting the balances.
+     */
     function computeBalances(members, expenses, settlements) {
-      const balances = {};
+      const balances = Object.create(null);
       for (const m of members) balances[m] = 0;
+      const known = name => Object.prototype.hasOwnProperty.call(balances, name);
 
       for (const expense of expenses) {
-        const share = expense.amount / expense.participants.length;
-        balances[expense.paidBy] += expense.amount;
-        for (const p of expense.participants) balances[p] -= share;
+        const { amount, paidBy, participants } = expense;
+        if (!validAmount(amount) || !Array.isArray(participants) || participants.length === 0) continue;
+        if (!known(paidBy) || !participants.every(known)) continue;
+        const share = amount / participants.length;
+        balances[paidBy] += amount;
+        for (const p of participants) balances[p] -= share;
       }
 
       for (const s of settlements) {
+        if (!validAmount(s.amount) || !known(s.from) || !known(s.to)) continue;
         balances[s.from] += s.amount;
         balances[s.to] -= s.amount;
       }
@@ -449,12 +464,17 @@
       return balances;
     }
 
+    /**
+     * Produce a short list of transactions that settles all debts
+     * (greedy: largest debtor pays largest creditor).
+     */
     function simplifyDebts(balances) {
       const creditors = [];
       const debtors = [];
 
       for (const [name, balance] of Object.entries(balances)) {
-        if (balance > EPS)       creditors.push({ name, amount: balance });
+        if (!Number.isFinite(balance)) continue;
+        if (balance > EPS)   creditors.push({ name, amount: balance });
         else if (balance < -EPS) debtors.push({ name, amount: -balance });
       }
 
@@ -466,6 +486,7 @@
 
       while (di < debtors.length && ci < creditors.length) {
         const amount = round2(Math.min(debtors[di].amount, creditors[ci].amount));
+        if (!(amount > 0)) break;
         transactions.push({ from: debtors[di].name, to: creditors[ci].name, amount });
         debtors[di].amount -= amount;
         creditors[ci].amount -= amount;
@@ -475,6 +496,45 @@
 
       return transactions;
     }
+
+    /**
+     * Turn whatever was read from storage into a safe state object.
+     * Keeps the stored format; drops entries that would break the app.
+     */
+    function sanitizeState(raw) {
+      const out = { members: [], expenses: [], settlements: [] };
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+
+      const isName = x => typeof x === 'string' && x.length > 0;
+      if (Array.isArray(raw.members)) {
+        for (const m of raw.members) if (isName(m) && !out.members.includes(m)) out.members.push(m);
+      }
+      const has = name => out.members.includes(name);
+      const text = x => typeof x === 'string' ? x : '';
+
+      if (Array.isArray(raw.expenses)) {
+        for (const e of raw.expenses) {
+          if (!e || typeof e !== 'object' || !validAmount(e.amount)) continue;
+          if (!has(e.paidBy) || !Array.isArray(e.participants) || e.participants.length === 0) continue;
+          if (!e.participants.every(has)) continue;
+          out.expenses.push({
+            id: text(e.id) || uid(), description: text(e.description), amount: e.amount,
+            paidBy: e.paidBy, participants: e.participants.slice(), date: text(e.date),
+          });
+        }
+      }
+
+      if (Array.isArray(raw.settlements)) {
+        for (const s of raw.settlements) {
+          if (!s || typeof s !== 'object' || !validAmount(s.amount) || !has(s.from) || !has(s.to)) continue;
+          out.settlements.push({
+            id: text(s.id) || uid(), from: s.from, to: s.to, amount: s.amount, date: text(s.date),
+          });
+        }
+      }
+
+      return out;
+    }
   </script>
   <script>
 
@@ -483,11 +543,19 @@
     const STORAGE_KEY = 'splitter';
 
     function load() {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? defaultState(); }
+      try { return sanitizeState(JSON.parse(localStorage.getItem(STORAGE_KEY))); }
       catch { return defaultState(); }
     }
 
-    function save(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+    function save(s) {
+      const err = document.getElementById('storage-error');
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+        err.textContent = '';
+      } catch {
+        err.textContent = 'Could not save your data in this browser: changes will be lost on reload.';
+      }
+    }
 
     function defaultState() { return { members: [], expenses: [], settlements: [] }; }
 
@@ -500,6 +568,7 @@
     function fmt(n) { return '€\u202f' + n.toFixed(2); }
 
     function fmtDate(iso) {
+      if (!iso || isNaN(new Date(iso))) return '';
       return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
     }
 
@@ -515,6 +584,12 @@
       if (state.members.length === 0)
         return '<option value="">— add friends first —</option>';
       return state.members.map(m => `<option value="${escHtml(m)}">${escHtml(m)}</option>`).join('');
+    }
+
+    // Parses an amount field: returns a number rounded to cents, or null if unusable.
+    function parseAmount(raw) {
+      const n = round2(parseFloat(raw));
+      return validAmount(n) ? n : null;
     }
 
     function setError(id, msg) { document.getElementById(id).textContent = msg; }
@@ -775,12 +850,12 @@
     function addExpense() {
       clearError('exp-error');
       const desc = document.getElementById('exp-desc').value.trim();
-      const amount = parseFloat(document.getElementById('exp-amount').value);
+      const amount = parseAmount(document.getElementById('exp-amount').value);
       const paidBy = document.getElementById('exp-paid-by').value;
       const participants = [...document.querySelectorAll('#exp-participants input:checked')].map(c => c.value);
 
       if (!desc)                     { setError('exp-error', 'Please enter a description.'); return; }
-      if (!amount || amount <= 0)    { setError('exp-error', 'Please enter a valid amount.'); return; }
+      if (amount === null)           { setError('exp-error', 'Please enter a valid amount (0.01 to 1,000,000,000).'); return; }
       if (!paidBy)                   { setError('exp-error', 'Please select who paid.'); return; }
       if (participants.length === 0) { setError('exp-error', 'Select at least one participant.'); return; }
 
@@ -802,11 +877,11 @@
       clearError('set-error');
       const from = document.getElementById('set-from').value;
       const to = document.getElementById('set-to').value;
-      const amount = parseFloat(document.getElementById('set-amount').value);
+      const amount = parseAmount(document.getElementById('set-amount').value);
 
       if (!from || !to)           { setError('set-error', 'Select both people.'); return; }
       if (from === to)            { setError('set-error', 'A person cannot pay themselves.'); return; }
-      if (!amount || amount <= 0) { setError('set-error', 'Please enter a valid amount.'); return; }
+      if (amount === null)        { setError('set-error', 'Please enter a valid amount (0.01 to 1,000,000,000).'); return; }
 
       state.settlements.push({
         id: uid(),
