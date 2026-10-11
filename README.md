@@ -29,6 +29,11 @@ To share it with friends, just send them the `splitter.html` file.
 3. The app calculates who owes whom and simplifies the debts
 4. When someone pays back, record the settlement — balances update automatically
 
+## Tests
+
+- In a browser: open `test.html`.
+- From a terminal: `node check.js` runs the same tests and also checks that the logic inlined in `splitter.html` is identical to `logic.js` (no dependencies needed).
+
 ## Files
 
 | File | Purpose |
@@ -37,6 +42,7 @@ To share it with friends, just send them the `splitter.html` file.
 | `index.html` | Entry page for GitHub Pages: redirects to `splitter.html` (the app itself does not need it) |
 | `logic.js` | Pure logic functions (balance calc, debt simplification) — used by tests |
 | `test.html` | Test suite — open in a browser to verify the logic |
+| `check.js` | Same tests from the command line (`node check.js`), plus a check that `splitter.html` and `logic.js` contain the same logic |
 | `plan.md` | Original build plan and data model |
 
 ## Technical details
