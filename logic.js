@@ -55,7 +55,8 @@ function computeBalances(members, expenses, settlements) {
 
 /**
  * Produce a short list of transactions that settles all debts
- * (greedy: largest debtor pays largest creditor).
+ * (greedy: largest debtor pays largest creditor; the fewest possible
+ * transactions is not guaranteed).
  */
 function simplifyDebts(balances) {
   const creditors = [];

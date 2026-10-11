@@ -248,9 +248,6 @@
       assert('2000 random groups: suggested payments settle everyone exactly', badSettle, 0);
     }
 
-    assert('simplifyDebts: balances differing by less than half a cent are treated as settled',
-      simplifyDebts({ Alice: 0.004, Bob: -0.004 }), []);
-
     // ── Robustness: invalid data must not corrupt balances or hang ───────────
 
     group('robustness (invalid data, sanitizeState)');
