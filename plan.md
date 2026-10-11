@@ -2,10 +2,11 @@
 
 ## Stack
 
-- `index.html` — UI, event handling, rendering, localStorage
-- `logic.js` — pure functions only (balance calc, debt simplification), loaded via `<script src>`
+- `splitter.html` — UI, event handling, rendering, localStorage
+- `logic.js` — pure functions only (balance calc, debt simplification); loaded by `test.html` via `<script src>` and inlined in `splitter.html` so the app stays a single file
 - `test.html` — inline test runner, loads `logic.js` via `<script src>`
-- CSS embedded in `<style>` inside `index.html`
+- CSS embedded in `<style>` inside `splitter.html`
+- `index.html` — tiny entry page for GitHub Pages that redirects to `splitter.html`
 - Data persisted in `localStorage`
 
 ---
@@ -51,7 +52,7 @@
 ### Debt simplification
 - Separate members into creditors (positive balance) and debtors (negative balance)
 - Greedily match the largest debtor with the largest creditor
-- Produce a minimal list of transactions to settle all debts
+- Produce a short list of transactions that settles all debts (greedy, not guaranteed to be the absolute minimum)
 
 ---
 
@@ -65,7 +66,7 @@
 ### 2. Add expense form
 - Fields: description, amount, paid by (dropdown), participants (checkboxes, all checked by default)
 - "Add expense" button
-- Validation: amount > 0, at least one participant, paidBy must be a participant
+- Validation: amount > 0, at least one participant (the payer may or may not be one of the participants)
 
 ### 3. Expenses list
 - Show all expenses, newest first
@@ -85,16 +86,16 @@
 
 ## Implementation steps
 
-- [ ] 1. `logic.js` — balance calculation + debt simplification as exported pure functions
-- [ ] 2. `test.html` — inline test runner covering all logic cases (see below)
-- [ ] 3. `index.html` skeleton with all sections
-- [ ] 4. localStorage read/write helpers
-- [ ] 5. Members: add, remove, render
-- [ ] 6. Expenses: add, delete, render
-- [ ] 7. Wire up balance + simplification from `logic.js`, render balances panel
-- [ ] 8. Settlements: add, delete, render
-- [ ] 9. Basic CSS styling (clean, readable, mobile-friendly)
-- [ ] 10. Edge cases: empty state, reset all data
+- [x] 1. `logic.js` — balance calculation + debt simplification as exported pure functions
+- [x] 2. `test.html` — inline test runner covering all logic cases (see below)
+- [x] 3. `splitter.html` skeleton with all sections
+- [x] 4. localStorage read/write helpers
+- [x] 5. Members: add, remove, render
+- [x] 6. Expenses: add, delete, render
+- [x] 7. Wire up balance + simplification from `logic.js`, render balances panel
+- [x] 8. Settlements: add, delete, render
+- [x] 9. Basic CSS styling (clean, readable, mobile-friendly)
+- [x] 10. Edge cases: empty state, reset all data
 
 ---
 
@@ -114,7 +115,7 @@ Inline runner with no dependencies: each test calls an assertion helper and rend
 **`simplifyDebts(balances)`**
 - All zeroes → no transactions
 - One debtor, one creditor → single transaction
-- Multiple debtors and creditors → minimal number of transactions
+- Multiple debtors and creditors → a short list of transactions (greedy)
 - Rounding: no floating point artifacts (use amounts rounded to 2 decimal places)
 - Already-settled group → empty result
 
