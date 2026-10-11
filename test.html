@@ -112,11 +112,11 @@
 
     // 8 — floating point: 100 / 3
     assert(
-      'Floating point: 100 split 3 ways rounds to 2 decimal places',
+      'Floating point: 100 split 3 ways — the extra cent stays with the payer, balances sum to 0',
       computeBalances(members, [
         { paidBy: 'Alice', amount: 100, participants: ['Alice', 'Bob', 'Davide'] }
       ], []),
-      { Alice: 66.67, Bob: -33.33, Davide: -33.33 }
+      { Alice: 66.66, Bob: -33.33, Davide: -33.33 }
     );
 
     // ── simplifyDebts ─────────────────────────────────────────────────────────
@@ -172,6 +172,60 @@
       simplifyDebts({ Alice: 0, Bob: 0, Davide: 0 }),
       []
     );
+
+    // ── Whole cents: balances always add up to exactly zero ──────────────────
+
+    const sum = o => Math.round(Object.values(o).reduce((a, b) => a + toCents(b), 0));
+
+    assert('1 cent split 3 ways: nobody owes anything',
+      computeBalances(members, [{ paidBy: 'Alice', amount: 0.01, participants: ['Alice', 'Bob', 'Davide'] }], []),
+      { Alice: 0, Bob: 0, Davide: 0 });
+
+    assert('100.01 split between two non-payers: leftover cent goes to the first',
+      computeBalances(members, [{ paidBy: 'Alice', amount: 100.01, participants: ['Bob', 'Davide'] }], []),
+      { Alice: 100.01, Bob: -50.01, Davide: -50 });
+
+    assert('Payer in the middle of the list takes the leftover cent first',
+      computeBalances(members, [{ paidBy: 'Bob', amount: 100, participants: ['Alice', 'Bob', 'Davide'] }], []),
+      { Alice: -33.33, Bob: 66.66, Davide: -33.33 });
+
+    assert('Settlements of 0.1 and 0.2 add up to exactly 0.3',
+      computeBalances(members, [{ paidBy: 'Alice', amount: 0.3, participants: ['Bob'] }], [
+        { from: 'Bob', to: 'Alice', amount: 0.1 }, { from: 'Bob', to: 'Alice', amount: 0.2 }
+      ]),
+      { Alice: 0, Bob: 0, Davide: 0 });
+
+    assert('Amounts with more than 2 decimals are taken to the nearest cent',
+      computeBalances(members, [{ paidBy: 'Alice', amount: 12.345, participants: ['Bob'] }], []),
+      { Alice: 12.35, Bob: -12.35, Davide: 0 });
+
+    // Deterministic pseudo-random groups: sum of balances is 0 and the suggested payments settle everyone
+    {
+      let seed = 12345;
+      const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+      let badSum = 0, badSettle = 0;
+      for (let t = 0; t < 2000; t++) {
+        const n = 2 + Math.floor(rnd() * 6);
+        const ms = Array.from({ length: n }, (_, i) => 'P' + i);
+        const exps = [];
+        for (let k = 1 + Math.floor(rnd() * 6); k > 0; k--) {
+          const parts = ms.filter(() => rnd() < 0.6);
+          if (!parts.length) parts.push(ms[0]);
+          exps.push({ paidBy: ms[Math.floor(rnd() * n)], amount: Math.round(rnd() * 20000) / 100 + 0.01, participants: parts });
+        }
+        const b = computeBalances(ms, exps, []);
+        if (sum(b) !== 0) badSum++;
+        const after = {};
+        for (const m of ms) after[m] = toCents(b[m]);
+        for (const tx of simplifyDebts(b)) { after[tx.from] += toCents(tx.amount); after[tx.to] -= toCents(tx.amount); }
+        if (Object.values(after).some(v => v !== 0)) badSettle++;
+      }
+      assert('2000 random groups: balances sum to exactly 0', badSum, 0);
+      assert('2000 random groups: suggested payments settle everyone exactly', badSettle, 0);
+    }
+
+    assert('simplifyDebts: balances differing by less than half a cent are treated as settled',
+      simplifyDebts({ Alice: 0.004, Bob: -0.004 }), []);
 
     // ── Render ────────────────────────────────────────────────────────────────
 
