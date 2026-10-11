@@ -45,7 +45,7 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      color: #999;
+      color: #6b6b6b;
       margin-bottom: 16px;
     }
 
@@ -74,7 +74,7 @@
       background: none;
       border: none;
       cursor: pointer;
-      color: #b0b8d4;
+      color: #5c6590;
       font-size: 0.85rem;
       padding: 0 2px;
       line-height: 1;
@@ -94,11 +94,10 @@
     input[type="text"],
     input[type="number"],
     select {
-      border: 1.5px solid #e0e0e0;
+      border: 1.5px solid #949494;
       border-radius: 8px;
       padding: 9px 12px;
-      font-size: 0.92rem;
-      outline: none;
+      font-size: 1rem;
       width: 100%;
       color: #1a1a2e;
       background: white;
@@ -107,6 +106,12 @@
     }
 
     input:focus, select:focus { border-color: #3d5a99; }
+
+    /* Visible keyboard focus on every interactive element */
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 2px solid #3d5a99;
+      outline-offset: 2px;
+    }
 
     /* ── Buttons ── */
     button.primary {
@@ -145,7 +150,7 @@
       background: none;
       border: none;
       cursor: pointer;
-      color: #ccc;
+      color: #6b6b6b;
       font-size: 0.85rem;
       padding: 4px 6px;
       border-radius: 4px;
@@ -158,8 +163,8 @@
 
     button.danger {
       background: none;
-      border: 1.5px solid #e0e0e0;
-      color: #bbb;
+      border: 1.5px solid #949494;
+      color: #6b6b6b;
       border-radius: 8px;
       padding: 7px 18px;
       font-size: 0.82rem;
@@ -183,7 +188,7 @@
     .form-label {
       font-size: 0.78rem;
       font-weight: 600;
-      color: #888;
+      color: #666;
       margin-bottom: 5px;
       display: block;
     }
@@ -231,7 +236,7 @@
 
     .expense-sub {
       font-size: 0.78rem;
-      color: #aaa;
+      color: #6b6b6b;
       margin-top: 2px;
     }
 
@@ -256,7 +261,7 @@
     .balance-name { font-weight: 500; }
     .positive { color: #2e7d32; font-weight: 700; }
     .negative { color: #c62828; font-weight: 700; }
-    .zero { color: #aaa; }
+    .zero { color: #6b6b6b; }
 
     /* ── Suggested settlements ── */
     .transactions {
@@ -270,7 +275,7 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      color: #bbb;
+      color: #6b6b6b;
       margin-bottom: 12px;
     }
 
@@ -308,7 +313,7 @@
     /* ── Misc ── */
     .empty {
       text-align: center;
-      color: #ccc;
+      color: #6b6b6b;
       font-size: 0.88rem;
       padding: 16px 0;
     }
@@ -346,7 +351,7 @@
         <input type="text" id="member-input" placeholder="Add a name…" maxlength="40" autocomplete="off">
         <button class="primary" id="member-add-btn">Add</button>
       </div>
-      <div class="error" id="member-error"></div>
+      <div class="error" id="member-error" role="alert"></div>
     </div>
 
     <!-- Add Expense -->
@@ -368,12 +373,12 @@
           </div>
         </div>
         <div>
-          <label class="form-label">Split between</label>
-          <div class="checkboxes" id="exp-participants"></div>
+          <span class="form-label" id="exp-participants-label">Split between</span>
+          <div class="checkboxes" id="exp-participants" role="group" aria-labelledby="exp-participants-label"></div>
         </div>
         <button class="primary" id="exp-add-btn">Add Expense</button>
       </div>
-      <div class="error" id="exp-error"></div>
+      <div class="error" id="exp-error" role="alert"></div>
     </div>
 
     <!-- Expenses -->
@@ -412,7 +417,7 @@
         </div>
         <button class="primary" id="set-add-btn">Record Settlement</button>
       </div>
-      <div class="error" id="set-error"></div>
+      <div class="error" id="set-error" role="alert"></div>
       <div id="settlement-list" class="divider" style="display:none"></div>
     </div>
 
@@ -580,6 +585,13 @@
         .replace(/"/g, '&quot;');
     }
 
+    // Today's date in the user's local time zone, as YYYY-MM-DD
+    function today() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+
     function memberOptions() {
       if (state.members.length === 0)
         return '<option value="">— add friends first —</option>';
@@ -629,7 +641,7 @@
       list.innerHTML = '';
 
       if (state.members.length === 0) {
-        list.innerHTML = '<span style="font-size:0.85rem;color:#ccc">No friends yet.</span>';
+        list.innerHTML = '<span style="font-size:0.85rem;color:#6b6b6b">No friends yet.</span>';
         return;
       }
 
@@ -645,7 +657,7 @@
         const tag = document.createElement('div');
         tag.className = 'member-tag';
         const isUsed = used.has(name);
-        tag.innerHTML = `${escHtml(name)} <button title="${isUsed ? 'In use' : 'Remove'}" ${isUsed ? 'disabled' : ''}>✕</button>`;
+        tag.innerHTML = `${escHtml(name)} <button title="${isUsed ? 'In use' : 'Remove'}" aria-label="${isUsed ? 'Cannot remove ' + escHtml(name) + ' (in use)' : 'Remove ' + escHtml(name)}" ${isUsed ? 'disabled' : ''}>✕</button>`;
         tag.querySelector('button').addEventListener('click', () => removeMember(name));
         list.appendChild(tag);
       }
@@ -661,7 +673,7 @@
       paidBySel.innerHTML = memberOptions();
 
       if (state.members.length === 0) {
-        participantsEl.innerHTML = '<span style="font-size:0.85rem;color:#ccc">No friends yet.</span>';
+        participantsEl.innerHTML = '<span style="font-size:0.85rem;color:#6b6b6b">No friends yet.</span>';
         return;
       }
 
@@ -706,7 +718,7 @@
             </div>
           </div>
           <div class="expense-amount">${fmt(exp.amount)}</div>
-          <button class="icon-btn" title="Delete expense">✕</button>
+          <button class="icon-btn" title="Delete expense" aria-label="Delete expense ${escHtml(exp.description)}">✕</button>
         `;
         div.querySelector('button').addEventListener('click', () => deleteEntry('expenses', exp.id));
         list.appendChild(div);
@@ -756,7 +768,7 @@
             <strong>${escHtml(tx.from)}</strong> &rarr; <strong>${escHtml(tx.to)}</strong>
           </span>
           <span class="transaction-amount">${fmt(tx.amount)}</span>
-          <button class="small">Record</button>
+          <button class="small" aria-label="Record payment from ${escHtml(tx.from)} to ${escHtml(tx.to)}">Record</button>
         `;
         div.querySelector('button').addEventListener('click', () => prefillSettlement(tx));
         txList.appendChild(div);
@@ -773,11 +785,17 @@
       const opts = memberOptions();
 
       fromSel.innerHTML = opts;
-      toSel.innerHTML = opts;
-
       if (state.members.includes(prevFrom)) fromSel.value = prevFrom;
+
+      // With a single friend there is nobody to pay: leave "To" empty instead of repeating the same name
+      if (state.members.length === 1) {
+        toSel.innerHTML = '<option value="">— add another friend —</option>';
+        return;
+      }
+
+      toSel.innerHTML = opts;
       if (state.members.includes(prevTo) && prevTo !== fromSel.value) toSel.value = prevTo;
-      else if (state.members.length > 1) toSel.value = state.members[1];
+      else toSel.value = state.members.find(m => m !== fromSel.value) ?? '';
     }
 
     function renderSettlements() {
@@ -802,7 +820,7 @@
             <strong>${escHtml(s.from)}</strong> paid <strong>${escHtml(s.to)}</strong>
           </span>
           <span class="settlement-amount">${fmt(s.amount)}</span>
-          <button class="icon-btn" title="Delete settlement">✕</button>
+          <button class="icon-btn" title="Delete settlement" aria-label="Delete settlement from ${escHtml(s.from)} to ${escHtml(s.to)}">✕</button>
         `;
         div.querySelector('button').addEventListener('click', () => deleteEntry('settlements', s.id));
         container.appendChild(div);
@@ -821,7 +839,7 @@
     function addMember() {
       clearError('member-error');
       const input = document.getElementById('member-input');
-      const name = input.value.trim();
+      const name = input.value.trim().replace(/\s+/g, ' ');
       if (!name) return;
       if (state.members.includes(name)) {
         setError('member-error', `"${name}" is already in the group.`);
@@ -865,11 +883,13 @@
         amount,
         paidBy,
         participants,
-        date: new Date().toISOString().slice(0, 10),
+        date: today(),
       });
       save(state);
       document.getElementById('exp-desc').value = '';
       document.getElementById('exp-amount').value = '';
+      // every expense starts with everyone selected again
+      document.querySelectorAll('#exp-participants input').forEach(c => { c.checked = true; });
       onLedgerChanged();
     }
 
@@ -888,7 +908,7 @@
         from,
         to,
         amount,
-        date: new Date().toISOString().slice(0, 10),
+        date: today(),
       });
       save(state);
       document.getElementById('set-amount').value = '';
@@ -901,7 +921,9 @@
     document.getElementById('member-input').addEventListener('keydown', e => { if (e.key === 'Enter') addMember(); });
     document.getElementById('exp-add-btn').addEventListener('click', addExpense);
     document.getElementById('exp-desc').addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
+    document.getElementById('exp-amount').addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
     document.getElementById('set-add-btn').addEventListener('click', addSettlement);
+    document.getElementById('set-amount').addEventListener('keydown', e => { if (e.key === 'Enter') addSettlement(); });
     document.getElementById('reset-btn').addEventListener('click', () => {
       if (confirm('Reset everything? All data will be lost.')) {
         state = defaultState();
