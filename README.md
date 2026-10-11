@@ -8,6 +8,8 @@ Instead of inviting friends to a platform, you define them as named labels (e.g.
 
 **Open `splitter.html`** in any browser — double-click it, no server needed.
 
+Or use it online (GitHub Pages): <https://davide-dv.github.io/splitter/> — the page redirects to the app, which is also available directly at <https://davide-dv.github.io/splitter/splitter.html>.
+
 To share it with friends, just send them the `splitter.html` file.
 
 ## Features
@@ -16,7 +18,7 @@ To share it with friends, just send them the `splitter.html` file.
 - **One group** — manage one shared trip or context at a time
 - **Add expenses** — record who paid, the amount, and which friends are involved (split equally among selected participants)
 - **Partial splits** — each expense can involve any subset of the group
-- **Simplified settlements** — balances are minimized to the fewest possible transactions
+- **Simplified settlements** — debts are reduced to a small number of payments (a greedy match of the biggest debtor with the biggest creditor; usually the fewest, but not guaranteed to be the absolute minimum)
 - **Settle up** — record payments between friends to clear debts
 - **Persistent** — all data is saved in `localStorage`, so it survives page refreshes
 
@@ -27,13 +29,20 @@ To share it with friends, just send them the `splitter.html` file.
 3. The app calculates who owes whom and simplifies the debts
 4. When someone pays back, record the settlement — balances update automatically
 
+## Tests
+
+- In a browser: open `test.html`.
+- From a terminal: `node check.js` runs the same tests and also checks that the logic inlined in `splitter.html` is identical to `logic.js` (no dependencies needed).
+
 ## Files
 
 | File | Purpose |
 |------|---------|
 | `splitter.html` | The app — fully self-contained, share this |
+| `index.html` | Entry page for GitHub Pages: redirects to `splitter.html` (the app itself does not need it) |
 | `logic.js` | Pure logic functions (balance calc, debt simplification) — used by tests |
 | `test.html` | Test suite — open in a browser to verify the logic |
+| `check.js` | Same tests from the command line (`node check.js`), plus a check that `splitter.html` and `logic.js` contain the same logic |
 | `plan.md` | Original build plan and data model |
 
 ## Technical details
@@ -42,3 +51,7 @@ To share it with friends, just send them the `splitter.html` file.
 - Data stored in `localStorage`
 - Works offline
 - `logic.js` exists separately only to support `test.html`; its code is inlined in `splitter.html`
+
+## License
+
+Released under the GNU General Public License v3.0 — see [`LICENSE`](LICENSE).
