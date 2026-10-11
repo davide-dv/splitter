@@ -26,10 +26,14 @@
     // ── Runner ────────────────────────────────────────────────────────────────
 
     const results = [];
+    let currentGroup = '';
+
+    // Starts a new section: every assertion that follows is listed under this name
+    function group(name) { currentGroup = name; }
 
     function assert(label, actual, expected) {
       const pass = JSON.stringify(actual) === JSON.stringify(expected);
-      results.push({ label, pass, actual, expected });
+      results.push({ label, pass, actual, expected, group: currentGroup });
     }
 
     function assertDeepUnordered(label, actual, expected) {
@@ -40,6 +44,8 @@
     }
 
     // ── computeBalances ───────────────────────────────────────────────────────
+
+    group('computeBalances');
 
     const members = ['Alice', 'Bob', 'Davide'];
 
@@ -121,6 +127,8 @@
 
     // ── simplifyDebts ─────────────────────────────────────────────────────────
 
+    group('simplifyDebts');
+
     // 9
     assert(
       'All zero balances → no transactions',
@@ -168,9 +176,74 @@
 
     // 14
     assert(
-      'Already settled group → empty result',
-      simplifyDebts({ Alice: 0, Bob: 0, Davide: 0 }),
+      'Rounding: 33.33 + 33.33 owed to one creditor → two clean transactions',
+      simplifyDebts({ Alice: 66.66, Bob: -33.33, Davide: -33.33 }),
+      [{ from: 'Bob', to: 'Alice', amount: 33.33 }, { from: 'Davide', to: 'Alice', amount: 33.33 }]
+    );
+
+    // 15
+    assert(
+      'Rounding: 0.1 + 0.2 style amounts give no floating point artifacts',
+      simplifyDebts({ Alice: 0.3, Bob: -0.1, Davide: -0.2 }),
+      [{ from: 'Davide', to: 'Alice', amount: 0.2 }, { from: 'Bob', to: 'Alice', amount: 0.1 }]
+    );
+
+    // 16
+    assert(
+      'Balances below half a cent are treated as settled',
+      simplifyDebts({ Alice: 0.004, Bob: -0.004 }),
       []
+    );
+
+    // ── More computeBalances cases ────────────────────────────────────────────
+
+    group('computeBalances (more cases)');
+
+    assert(
+      'Expense with a single participant who is also the payer → nobody owes anything',
+      computeBalances(members, [{ paidBy: 'Alice', amount: 25, participants: ['Alice'] }], []),
+      { Alice: 0, Bob: 0, Davide: 0 }
+    );
+
+    assert(
+      'Very small amount (0.01) paid by Alice for Bob',
+      computeBalances(members, [{ paidBy: 'Alice', amount: 0.01, participants: ['Bob'] }], []),
+      { Alice: 0.01, Bob: -0.01, Davide: 0 }
+    );
+
+    assert(
+      'Several settlements between the same two people accumulate',
+      computeBalances(members, [
+        { paidBy: 'Alice', amount: 60, participants: ['Bob'] }
+      ], [
+        { from: 'Bob', to: 'Alice', amount: 10 },
+        { from: 'Bob', to: 'Alice', amount: 20.5 },
+        { from: 'Bob', to: 'Alice', amount: 5 }
+      ]),
+      { Alice: 24.5, Bob: -24.5, Davide: 0 }
+    );
+
+    assert(
+      'Settlement larger than the debt flips the balance',
+      computeBalances(members, [{ paidBy: 'Alice', amount: 10, participants: ['Bob'] }], [
+        { from: 'Bob', to: 'Alice', amount: 50 }
+      ]),
+      { Alice: -40, Bob: 40, Davide: 0 }
+    );
+
+    assert(
+      'Balances of a group with whole-euro amounts add up to zero',
+      Object.values(computeBalances(members, [
+        { paidBy: 'Alice', amount: 90, participants: ['Alice', 'Bob', 'Davide'] },
+        { paidBy: 'Bob', amount: 45, participants: ['Bob', 'Davide'] }
+      ], [])).reduce((a, b) => a + b, 0),
+      0
+    );
+
+    assert(
+      'Members without any expense stay at 0 and are still listed',
+      Object.keys(computeBalances(['Alice', 'Bob'], [], [])),
+      ['Alice', 'Bob']
     );
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -178,14 +251,12 @@
     const output = document.getElementById('output');
     const summary = document.getElementById('summary');
 
-    const groups = { computeBalances: [], simplifyDebts: [] };
-    results.forEach((r, i) => {
-      groups[i < 8 ? 'computeBalances' : 'simplifyDebts'].push(r);
-    });
+    const groups = {};
+    results.forEach(r => { (groups[r.group] = groups[r.group] || []).push(r); });
 
     for (const [fn, tests] of Object.entries(groups)) {
       const h2 = document.createElement('h2');
-      h2.textContent = fn + '()';
+      h2.textContent = fn.includes(' ') ? fn : fn + '()';
       output.appendChild(h2);
 
       for (const { label, pass, actual, expected } of tests) {
