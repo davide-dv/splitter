@@ -191,6 +191,22 @@
     .choice input:focus-visible + span { outline: 3px solid var(--ink); outline-offset: 2px; }
     .flow-actions { display: flex; gap: 10px; margin-top: 16px; }
 
+    /* Pay confirmation */
+    .overlay {
+      position: fixed; inset: 0; z-index: 30; background: rgba(42,37,32,0.6);
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+    }
+    .overlay[hidden] { display: none; }
+    .slip {
+      background: var(--paper); width: 100%; max-width: 380px; padding: 18px 16px; border-radius: 3px;
+      box-shadow: 0 4px 12px rgba(42,37,32,0.4);
+    }
+    .slip h2 { font-size: 0.78rem; letter-spacing: 0.2em; color: var(--muted); margin-bottom: 6px; }
+    .slip .who { font-size: 1.2rem; font-weight: 700; overflow-wrap: anywhere; margin-bottom: 10px; }
+    .slip input[type="text"] { text-align: right; }
+    .slip .error { min-height: 1.2em; }
+    .slip .flow-actions .btn { min-width: 0; }
+
     @media (min-width: 600px) {
       .screen { padding-top: 40px; }
     }
@@ -273,6 +289,22 @@
     <div class="error on-kraft" id="exp-error" role="alert"></div>
     <div class="flow-actions"><button class="btn solid" id="next-btn"></button></div>
   </section>
+
+  <div class="overlay" id="pay-overlay" hidden>
+    <div class="slip" role="dialog" aria-modal="true" aria-labelledby="pay-title" aria-describedby="pay-who">
+      <h2 id="pay-title">CONFIRM PAYMENT</h2>
+      <div class="who" id="pay-who"></div>
+      <div class="field">
+        <label for="pay-amount">Amount paid (€)</label>
+        <input type="text" id="pay-amount" inputmode="decimal" autocomplete="off" aria-describedby="pay-error">
+      </div>
+      <div class="error" id="pay-error" role="alert"></div>
+      <div class="flow-actions">
+        <button class="btn line" id="pay-cancel">Cancel</button>
+        <button class="btn solid" id="pay-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
 
@@ -543,7 +575,7 @@
         html += '<hr class="dash"><h2 class="sect-title">TO SETTLE</h2>';
         txs.forEach((t, i) => {
           html += `<div class="row settle"><span class="who">${escHtml(t.from)} &gt; ${escHtml(t.to)}</span><span class="fill" aria-hidden="true"></span><span class="amt">${num(t.amount)}</span>
-            <button class="paid-btn" data-paid="${i}" aria-label="Paid: ${escHtml(t.from)} pays ${escHtml(t.to)} ${num(t.amount)}">PAID?</button></div>`;
+            <button class="paid-btn" data-paid="${i}" data-from="${escHtml(t.from)}" data-to="${escHtml(t.to)}" aria-label="Paid: ${escHtml(t.from)} pays ${escHtml(t.to)} ${num(t.amount)}">PAID?</button></div>`;
         });
       }
 
@@ -559,7 +591,7 @@
       body.innerHTML = html;
       body.querySelectorAll('[data-del-exp]').forEach(b => b.addEventListener('click', () => deleteEntry('expenses', b.dataset.delExp)));
       body.querySelectorAll('[data-del-set]').forEach(b => b.addEventListener('click', () => deleteEntry('settlements', b.dataset.delSet)));
-      body.querySelectorAll('[data-paid]').forEach(b => b.addEventListener('click', () => recordPaid(txs[+b.dataset.paid])));
+      body.querySelectorAll('[data-paid]').forEach(b => b.addEventListener('click', () => openPay(txs[+b.dataset.paid], b)));
     }
 
     function deleteEntry(key, id) {
@@ -570,12 +602,47 @@
       toast('Deleted');
     }
 
-    function recordPaid(tx) {
-      state.settlements.push({ id: uid(), from: tx.from, to: tx.to, amount: tx.amount, date: today() });
+    let payTx = null;
+    let payOpener = null;
+
+    function openPay(tx, opener) {
+      if (payTx) return;
+      payTx = tx;
+      payOpener = opener;
+      $('pay-who').textContent = `${tx.from} > ${tx.to}`;
+      $('pay-amount').value = num(tx.amount);
+      clearError('pay-error');
+      $('pay-overlay').hidden = false;
+      $('pay-amount').focus();
+      $('pay-amount').select();
+    }
+
+    function closePay() {
+      const tx = payTx, opener = payOpener;
+      payTx = null;
+      payOpener = null;
+      $('pay-overlay').hidden = true;
+      if (opener && document.body.contains(opener)) { opener.focus({ preventScroll: true }); return; }
+      const again = tx && Array.from(document.querySelectorAll('[data-paid]'))
+        .find(b => b.dataset.from === tx.from && b.dataset.to === tx.to);
+      (again || $('view-home')).focus({ preventScroll: true });
+    }
+
+    function confirmPay() {
+      if (!payTx) return;
+      const raw = $('pay-amount').value.trim().replace(',', '.');
+      const amount = /^\d+(\.\d{1,2})?$/.test(raw) ? parseAmount(raw) : null;
+      if (amount === null) {
+        setError('pay-error', 'Enter an amount above 0 with at most 2 decimals.');
+        $('pay-amount').focus();
+        return;
+      }
+      const tx = payTx;
+      state.settlements.push({ id: uid(), from: tx.from, to: tx.to, amount, date: today() });
       save(state);
       renderAll();
-      toast(`${tx.from} paid ${tx.to} ${num(tx.amount)}`);
-      $('view-home').focus({ preventScroll: true });
+      closePay();
+      toast(`${tx.from} paid ${tx.to} ${num(amount)}`);
     }
 
     // ── Friends ───────────────────────────────────────────────────────────────
@@ -823,7 +890,23 @@
       }
     });
 
+    $('pay-confirm').addEventListener('click', confirmPay);
+    $('pay-cancel').addEventListener('click', closePay);
+    $('pay-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmPay(); } });
+    $('pay-amount').addEventListener('input', () => clearError('pay-error'));
+
     document.addEventListener('keydown', e => {
+      if (payTx) {
+        if (e.key === 'Escape') closePay();
+        else if (e.key === 'Tab') {
+          const f = [$('pay-amount'), $('pay-cancel'), $('pay-confirm')];
+          const at = f.indexOf(document.activeElement);
+          const next = e.shiftKey ? (at <= 0 ? f.length - 1 : at - 1) : (at === f.length - 1 ? 0 : at + 1);
+          e.preventDefault();
+          f[next].focus();
+        }
+        return;
+      }
       if (e.key === 'Escape') {
         if (!$('view-add').hidden) flowBack();
         else if (!$('view-friends').hidden) backHome();
