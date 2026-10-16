@@ -48,79 +48,73 @@
     group('computeBalances');
 
     const members = ['Alice', 'Bob', 'Davide'];
+    const ZERO = { Alice: 0, Bob: 0, Davide: 0 };
+    const ex = (paidBy, amount, participants) => ({ paidBy, amount, participants });
 
-    // 1
     assert(
       'No expenses → all balances are 0',
       computeBalances(members, [], []),
-      { Alice: 0, Bob: 0, Davide: 0 }
+      ZERO
     );
 
-    // 2
     assert(
       'One expense, Alice pays 90, all 3 participate equally',
       computeBalances(members, [
-        { paidBy: 'Alice', amount: 90, participants: ['Alice', 'Bob', 'Davide'] }
+        ex('Alice', 90, ['Alice', 'Bob', 'Davide'])
       ], []),
       { Alice: 60, Bob: -30, Davide: -30 }
     );
 
-    // 3
     assert(
       'Payer is NOT a participant (Alice pays 90, only Bob and Davide split)',
       computeBalances(members, [
-        { paidBy: 'Alice', amount: 90, participants: ['Bob', 'Davide'] }
+        ex('Alice', 90, ['Bob', 'Davide'])
       ], []),
       { Alice: 90, Bob: -45, Davide: -45 }
     );
 
-    // 4
     assert(
       'Payer is participant: Alice pays 60, Alice and Bob split',
       computeBalances(members, [
-        { paidBy: 'Alice', amount: 60, participants: ['Alice', 'Bob'] }
+        ex('Alice', 60, ['Alice', 'Bob'])
       ], []),
       { Alice: 30, Bob: -30, Davide: 0 }
     );
 
-    // 5
     assert(
       'Multiple expenses accumulate correctly',
       computeBalances(members, [
-        { paidBy: 'Alice', amount: 90, participants: ['Alice', 'Bob', 'Davide'] },
-        { paidBy: 'Bob',   amount: 60, participants: ['Alice', 'Bob'] }
+        ex('Alice', 90, ['Alice', 'Bob', 'Davide']),
+        ex('Bob', 60, ['Alice', 'Bob'])
       ], []),
       { Alice: 30, Bob: 0, Davide: -30 }
     );
 
-    // 6
     assert(
       'Settlement clears debt between two people',
       computeBalances(members, [
-        { paidBy: 'Alice', amount: 90, participants: ['Alice', 'Bob', 'Davide'] }
+        ex('Alice', 90, ['Alice', 'Bob', 'Davide'])
       ], [
         { from: 'Bob',    to: 'Alice', amount: 30 },
         { from: 'Davide', to: 'Alice', amount: 30 }
       ]),
-      { Alice: 0, Bob: 0, Davide: 0 }
+      ZERO
     );
 
-    // 7
     assert(
       'Partial settlement reduces but does not clear debt',
       computeBalances(members, [
-        { paidBy: 'Alice', amount: 90, participants: ['Alice', 'Bob', 'Davide'] }
+        ex('Alice', 90, ['Alice', 'Bob', 'Davide'])
       ], [
         { from: 'Bob', to: 'Alice', amount: 10 }
       ]),
       { Alice: 50, Bob: -20, Davide: -30 }
     );
 
-    // 8 — floating point: 100 / 3
     assert(
       'Floating point: 100 split 3 ways — the extra cent stays with the payer, balances sum to 0',
       computeBalances(members, [
-        { paidBy: 'Alice', amount: 100, participants: ['Alice', 'Bob', 'Davide'] }
+        ex('Alice', 100, ['Alice', 'Bob', 'Davide'])
       ], []),
       { Alice: 66.66, Bob: -33.33, Davide: -33.33 }
     );
@@ -129,21 +123,18 @@
 
     group('simplifyDebts');
 
-    // 9
     assert(
       'All zero balances → no transactions',
-      simplifyDebts({ Alice: 0, Bob: 0, Davide: 0 }),
+      simplifyDebts(ZERO),
       []
     );
 
-    // 10
     assert(
       'One creditor, one debtor, exact amounts → one transaction',
       simplifyDebts({ Alice: 30, Bob: -30 }),
       [{ from: 'Bob', to: 'Alice', amount: 30 }]
     );
 
-    // 11
     assertDeepUnordered(
       'One creditor, two debtors → two transactions',
       simplifyDebts({ Alice: 60, Bob: -30, Davide: -30 }),
@@ -153,7 +144,6 @@
       ]
     );
 
-    // 12
     assertDeepUnordered(
       'Two creditors, one debtor → two transactions',
       simplifyDebts({ Alice: 30, Bob: 20, Davide: -50 }),
@@ -163,7 +153,6 @@
       ]
     );
 
-    // 13
     assertDeepUnordered(
       'Complex case: two debtors, two creditors',
       simplifyDebts({ Alice: 40, Bob: 20, Davide: -10, Eve: -50 }),
@@ -174,21 +163,18 @@
       ]
     );
 
-    // 14
     assert(
       'Rounding: 33.33 + 33.33 owed to one creditor → two clean transactions',
       simplifyDebts({ Alice: 66.66, Bob: -33.33, Davide: -33.33 }),
       [{ from: 'Bob', to: 'Alice', amount: 33.33 }, { from: 'Davide', to: 'Alice', amount: 33.33 }]
     );
 
-    // 15
     assert(
       'Rounding: 0.1 + 0.2 style amounts give no floating point artifacts',
       simplifyDebts({ Alice: 0.3, Bob: -0.1, Davide: -0.2 }),
       [{ from: 'Davide', to: 'Alice', amount: 0.2 }, { from: 'Bob', to: 'Alice', amount: 0.1 }]
     );
 
-    // 16
     assert(
       'Balances below half a cent are treated as settled',
       simplifyDebts({ Alice: 0.004, Bob: -0.004 }),
@@ -202,25 +188,25 @@
     const sum = o => Math.round(Object.values(o).reduce((a, b) => a + toCents(b), 0));
 
     assert('1 cent split 3 ways: nobody owes anything',
-      computeBalances(members, [{ paidBy: 'Alice', amount: 0.01, participants: ['Alice', 'Bob', 'Davide'] }], []),
-      { Alice: 0, Bob: 0, Davide: 0 });
+      computeBalances(members, [ex('Alice', 0.01, ['Alice', 'Bob', 'Davide'])], []),
+      ZERO);
 
     assert('100.01 split between two non-payers: leftover cent goes to the first',
-      computeBalances(members, [{ paidBy: 'Alice', amount: 100.01, participants: ['Bob', 'Davide'] }], []),
+      computeBalances(members, [ex('Alice', 100.01, ['Bob', 'Davide'])], []),
       { Alice: 100.01, Bob: -50.01, Davide: -50 });
 
     assert('Payer in the middle of the list takes the leftover cent first',
-      computeBalances(members, [{ paidBy: 'Bob', amount: 100, participants: ['Alice', 'Bob', 'Davide'] }], []),
+      computeBalances(members, [ex('Bob', 100, ['Alice', 'Bob', 'Davide'])], []),
       { Alice: -33.33, Bob: 66.66, Davide: -33.33 });
 
     assert('Settlements of 0.1 and 0.2 add up to exactly 0.3',
-      computeBalances(members, [{ paidBy: 'Alice', amount: 0.3, participants: ['Bob'] }], [
+      computeBalances(members, [ex('Alice', 0.3, ['Bob'])], [
         { from: 'Bob', to: 'Alice', amount: 0.1 }, { from: 'Bob', to: 'Alice', amount: 0.2 }
       ]),
-      { Alice: 0, Bob: 0, Davide: 0 });
+      ZERO);
 
     assert('Amounts with more than 2 decimals are taken to the nearest cent',
-      computeBalances(members, [{ paidBy: 'Alice', amount: 12.345, participants: ['Bob'] }], []),
+      computeBalances(members, [ex('Alice', 12.345, ['Bob'])], []),
       { Alice: 12.35, Bob: -12.35, Davide: 0 });
 
     // Deterministic pseudo-random groups: sum of balances is 0 and the suggested payments settle everyone
@@ -252,30 +238,28 @@
 
     group('robustness (invalid data, sanitizeState)');
 
-    const ex = (paidBy, amount, participants) => ({ paidBy, amount, participants });
-
     assert('Expense with no participants is ignored',
       computeBalances(members, [ex('Alice', 10, [])], []),
-      { Alice: 0, Bob: 0, Davide: 0 });
+      ZERO);
 
     assert('Expense paid by a non-member is ignored (no NaN)',
       computeBalances(members, [ex('Zed', 10, ['Alice'])], []),
-      { Alice: 0, Bob: 0, Davide: 0 });
+      ZERO);
 
     assert('Expense with a non-member participant is ignored (no NaN)',
       computeBalances(members, [ex('Alice', 10, ['Alice', 'Zed'])], []),
-      { Alice: 0, Bob: 0, Davide: 0 });
+      ZERO);
 
     assert('Non-finite, negative, zero and huge amounts are ignored',
       computeBalances(members, [
         ex('Alice', Infinity, ['Bob']), ex('Alice', NaN, ['Bob']), ex('Alice', -5, ['Bob']),
         ex('Alice', 0, ['Bob']), ex('Alice', 1e308, ['Bob']), ex('Alice', '10', ['Bob'])
       ], []),
-      { Alice: 0, Bob: 0, Davide: 0 });
+      ZERO);
 
     assert('Settlement with an unknown person is ignored',
       computeBalances(members, [], [{ from: 'Zed', to: 'Alice', amount: 5 }]),
-      { Alice: 0, Bob: 0, Davide: 0 });
+      ZERO);
 
     assert('Member named "__proto__" is handled like any other',
       computeBalances(['__proto__', 'Bob'], [ex('Bob', 10, ['__proto__', 'Bob'])], []),
@@ -326,20 +310,20 @@
 
     assert(
       'Expense with a single participant who is also the payer → nobody owes anything',
-      computeBalances(members, [{ paidBy: 'Alice', amount: 25, participants: ['Alice'] }], []),
-      { Alice: 0, Bob: 0, Davide: 0 }
+      computeBalances(members, [ex('Alice', 25, ['Alice'])], []),
+      ZERO
     );
 
     assert(
       'Very small amount (0.01) paid by Alice for Bob',
-      computeBalances(members, [{ paidBy: 'Alice', amount: 0.01, participants: ['Bob'] }], []),
+      computeBalances(members, [ex('Alice', 0.01, ['Bob'])], []),
       { Alice: 0.01, Bob: -0.01, Davide: 0 }
     );
 
     assert(
       'Several settlements between the same two people accumulate',
       computeBalances(members, [
-        { paidBy: 'Alice', amount: 60, participants: ['Bob'] }
+        ex('Alice', 60, ['Bob'])
       ], [
         { from: 'Bob', to: 'Alice', amount: 10 },
         { from: 'Bob', to: 'Alice', amount: 20.5 },
@@ -350,26 +334,13 @@
 
     assert(
       'Settlement larger than the debt flips the balance',
-      computeBalances(members, [{ paidBy: 'Alice', amount: 10, participants: ['Bob'] }], [
+      computeBalances(members, [ex('Alice', 10, ['Bob'])], [
         { from: 'Bob', to: 'Alice', amount: 50 }
       ]),
       { Alice: -40, Bob: 40, Davide: 0 }
     );
 
-    assert(
-      'Balances of a group with whole-euro amounts add up to zero',
-      Object.values(computeBalances(members, [
-        { paidBy: 'Alice', amount: 90, participants: ['Alice', 'Bob', 'Davide'] },
-        { paidBy: 'Bob', amount: 45, participants: ['Bob', 'Davide'] }
-      ], [])).reduce((a, b) => a + b, 0),
-      0
-    );
 
-    assert(
-      'Members without any expense stay at 0 and are still listed',
-      Object.keys(computeBalances(['Alice', 'Bob'], [], [])),
-      ['Alice', 'Bob']
-    );
 
     // ── Render ────────────────────────────────────────────────────────────────
 

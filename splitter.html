@@ -459,7 +459,7 @@
       }
     }
 
-    function defaultState() { return { members: [], expenses: [], settlements: [] }; }
+    function defaultState() { return sanitizeState(null); }
 
     // ── State ─────────────────────────────────────────────────────────────────
 
@@ -473,6 +473,10 @@
     const $ = id => document.getElementById(id);
     function num(n) { return n.toFixed(2); }
     function fmt(n) { return '€' + num(n); }
+    // Sum of all expenses, computed in whole cents
+    function totalOf(expenses) { return expenses.reduce((s, e) => s + toCents(e.amount), 0) / 100; }
+    // Who shares an expense: "split N" when everyone takes part, otherwise the names (plain text)
+    function whoText(e) { return e.participants.length === state.members.length ? 'split ' + e.participants.length : e.participants.join(', '); }
     function signed(n) { return (n > 0 ? '+' : n < 0 ? '-' : '') + num(Math.abs(n)); }
 
     function escHtml(str) {
@@ -552,15 +556,14 @@
       }
       for (let i = 0; i < state.expenses.length; i++) {
         const e = state.expenses[i];
-        const who = e.participants.length === n ? 'split ' + n : e.participants.map(escHtml).join(', ');
+        const who = escHtml(whoText(e));
         html += `<div class="item"><div class="item-line"><span class="main">
           ${line(escHtml(e.description || 'Item'), num(e.amount))}
           <div class="sub">${escHtml(e.paidBy)} &middot; ${who}</div></span>
           <button class="del" data-del-exp="${escHtml(e.id)}" aria-label="Delete expense ${escHtml(e.description)}">✕</button></div></div>`;
       }
 
-      const totalCents = state.expenses.reduce((s, e) => s + toCents(e.amount), 0);
-      html += `<hr class="dash"><div class="row total"><span>TOTAL</span><span class="fill" aria-hidden="true" style="border:none"></span><span>${fmt(totalCents / 100)}</span></div><hr class="dash">`;
+      html += `<hr class="dash"><div class="row total"><span>TOTAL</span><span class="fill" aria-hidden="true" style="border:none"></span><span>${fmt(totalOf(state.expenses))}</span></div><hr class="dash">`;
 
       const balances = computeBalances(state.members, state.expenses, state.settlements);
       html += '<h2 class="sect-title">BALANCES</h2>';
@@ -754,6 +757,18 @@
       return `${n} ${n === 1 ? 'person' : 'people'} · ${even ? '' : '≈ '}${num(each)} each`;
     }
 
+    // One label per member with a radio or checkbox; onChange(member, checked) runs when it changes
+    function choiceList(box, type, isChecked, onChange) {
+      box.innerHTML = '';
+      for (const m of state.members) {
+        const l = document.createElement('label');
+        l.className = 'choice';
+        l.innerHTML = `<input type="${type}"${type === 'radio' ? ' name="paid"' : ''} value="${escHtml(m)}" ${isChecked(m) ? 'checked' : ''}><span>${escHtml(m)}</span>`;
+        l.querySelector('input').addEventListener('change', e => onChange(m, e.target.checked));
+        box.appendChild(l);
+      }
+    }
+
     function renderFlow() {
       const s = flow.step;
       document.querySelectorAll('.progress i').forEach((el, i) => el.classList.toggle('on', i < s));
@@ -768,31 +783,15 @@
       if (s === 1) renderAmount();
 
       if (s === 2) {
-        const box = $('paid-choices');
-        box.innerHTML = '';
-        for (const m of state.members) {
-          const l = document.createElement('label');
-          l.className = 'choice';
-          l.innerHTML = `<input type="radio" name="paid" value="${escHtml(m)}" ${m === flow.paidBy ? 'checked' : ''}><span>${escHtml(m)}</span>`;
-          l.querySelector('input').addEventListener('change', () => { flow.paidBy = m; });
-          box.appendChild(l);
-        }
+        choiceList($('paid-choices'), 'radio', m => m === flow.paidBy, (m, on) => { flow.paidBy = m; });
       }
 
       if (s === 3) {
-        const box = $('part-choices');
-        box.innerHTML = '';
-        for (const m of state.members) {
-          const l = document.createElement('label');
-          l.className = 'choice';
-          l.innerHTML = `<input type="checkbox" value="${escHtml(m)}" ${flow.parts.has(m) ? 'checked' : ''}><span>${escHtml(m)}</span>`;
-          l.querySelector('input').addEventListener('change', e => {
-            if (e.target.checked) flow.parts.add(m); else flow.parts.delete(m);
-            $('each-line').textContent = eachText();
-            clearError('exp-error');
-          });
-          box.appendChild(l);
-        }
+        choiceList($('part-choices'), 'checkbox', m => flow.parts.has(m), (m, on) => {
+          if (on) flow.parts.add(m); else flow.parts.delete(m);
+          $('each-line').textContent = eachText();
+          clearError('exp-error');
+        });
         $('each-line').textContent = eachText();
       }
     }
@@ -843,10 +842,9 @@
       const pad = (a, b) => a + ' ' + b;
       const out = ['SPLITTER', ''];
       for (const e of state.expenses) {
-        out.push(pad(e.description || 'Item', num(e.amount)) + ` (paid by ${e.paidBy}, ${e.participants.length === state.members.length ? 'split ' + e.participants.length : e.participants.join(', ')})`);
+        out.push(pad(e.description || 'Item', num(e.amount)) + ` (paid by ${e.paidBy}, ${whoText(e)})`);
       }
-      const total = state.expenses.reduce((s, e) => s + toCents(e.amount), 0) / 100;
-      out.push('', 'TOTAL ' + fmt(total), '', 'BALANCES');
+      out.push('', 'TOTAL ' + fmt(totalOf(state.expenses)), '', 'BALANCES');
       const balances = computeBalances(state.members, state.expenses, state.settlements);
       for (const [name, bal] of Object.entries(balances)) out.push(`${name} ${signed(bal) || '0.00'}`);
       const txs = simplifyDebts(balances);
